@@ -91,6 +91,31 @@
   .side-btn.buy.active  { background: rgba(92,184,92,0.12);  color: #5cb85c; }
   .side-btn.sell.active { background: rgba(224,92,92,0.12);  color: #e05c5c; }
 
+  /* SETUP TYPE TOGGLE */
+  .setup-toggle {
+    display: flex;
+    border-bottom: 1px solid #1a1508;
+  }
+
+  .setup-btn {
+    flex: 1;
+    padding: 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 9px;
+    letter-spacing: 4px;
+    font-family: Georgia, serif;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    color: #3a3020;
+  }
+
+  .setup-btn.active {
+    background: rgba(201,168,76,0.1);
+    color: #c9a84c;
+  }
+
   /* CARDS */
   .card {
     width: 100%;
@@ -396,13 +421,13 @@
   <button class="side-btn sell"       id="btn-sell" onclick="setSide('sell')">▼ &nbsp; SELL</button>
 </div>
 
-<!-- SETUP STEPS -->
+<!-- SETUP CARD (A+ / B toggle) -->
 <div class="card">
-  <div class="card-header">
-    <span class="card-title" id="steps-title">Setup — Buys</span>
-    <span class="card-hint">tick as price confirms</span>
+  <div class="setup-toggle">
+    <button class="setup-btn active" id="btn-aplus" onclick="setSetupType('aplus')">A+ Setup</button>
+    <button class="setup-btn" id="btn-bsetup" onclick="setSetupType('bsetup')">B Setup</button>
   </div>
-  <div id="steps-list"></div>
+  <div id="val-list"></div>
 </div>
 
 <!-- NON-NEGOTIABLES -->
@@ -464,10 +489,13 @@ const NN = [
 function save(k, v) { try { localStorage.setItem('yt_' + k, JSON.stringify(v)); } catch(e){} }
 function load(k, d) { try { const v = localStorage.getItem('yt_' + k); return v !== null ? JSON.parse(v) : d; } catch(e){ return d; } }
 
-let side    = load('side', 'buy');
-let steps   = load('steps_' + side, [false,false,false,false]);
-let blocked = load('blocked', [false,false,false]);
-let pair    = load('pair', '');
+let side      = load('side', 'buy');
+let steps     = load('steps_' + side, [false,false,false,false]);
+let blocked   = load('blocked', [false,false,false]);
+let val       = load('val', [false,false,false,false]);
+let bval      = load('bval', [false,false,false,false]);
+let setupType = load('setupType', 'aplus');
+let pair      = load('pair', '');
 
 // ── INIT UI ───────────────────────────────────────────────────
 document.getElementById('pair-input').value = pair;
@@ -492,15 +520,40 @@ function render() {
 
   document.getElementById('btn-buy').className  = 'side-btn buy'  + (side === 'buy'  ? ' active' : '');
   document.getElementById('btn-sell').className = 'side-btn sell' + (side === 'sell' ? ' active' : '');
-  document.getElementById('steps-title').textContent = setup.title;
 
-  document.getElementById('steps-list').innerHTML = setup.steps.map((s, i) => `
-    <div class="check-item ${side} ${steps[i] ? 'checked' : ''}" onclick="toggleStep(${i})">
-      <span class="num">${i + 1}</span>
-      <span class="check-text">${s}</span>
-      <div class="box ${steps[i] ? 'ticked' : ''}"><span class="tick">✓</span></div>
-    </div>
-  `).join('');
+  // Setup type toggle buttons
+  document.getElementById('btn-aplus').className  = 'setup-btn' + (setupType === 'aplus'  ? ' active' : '');
+  document.getElementById('btn-bsetup').className = 'setup-btn' + (setupType === 'bsetup' ? ' active' : '');
+
+  if (setupType === 'aplus') {
+    const APLUS_ITEMS = [
+      'HTF swing broken on H4 or Daily',
+      'Pullback to origin of that HTF move',
+      'M15 structure aligns with HTF direction',
+      'Enter — stop below/above the HTF swing',
+    ];
+    document.getElementById('val-list').innerHTML = APLUS_ITEMS.map((v, i) => `
+      <div class="check-item ${side} ${val[i] ? 'checked' : ''}" onclick="toggleVal(${i})">
+        <span class="num">${i + 1}</span>
+        <span class="check-text">${v}</span>
+        <div class="box ${val[i] ? 'ticked' : ''}"><span class="tick">✓</span></div>
+      </div>
+    `).join('');
+  } else {
+    const BSETUP_ITEMS = [
+      'HTF move complete — not mid-trend',
+      side === 'buy' ? 'LTF break + higher low confirmed' : 'LTF break + lower high confirmed',
+      'Entry on pullback only',
+      'Internal target + reduced risk',
+    ];
+    document.getElementById('val-list').innerHTML = BSETUP_ITEMS.map((v, i) => `
+      <div class="check-item ${side} ${bval[i] ? 'checked' : ''}" onclick="toggleBval(${i})">
+        <span class="num">${i + 1}</span>
+        <span class="check-text">${v}</span>
+        <div class="box ${bval[i] ? 'ticked' : ''}"><span class="tick">✓</span></div>
+      </div>
+    `).join('');
+  }
 
   document.getElementById('nn-list').innerHTML = NN.map((n, i) => `
     <div class="nn-item ${blocked[i] ? 'blocked' : ''}" onclick="toggleBlocked(${i})">
@@ -511,19 +564,24 @@ function render() {
   `).join('');
 
   // status
-  const box = document.getElementById('status-box');
+  const box        = document.getElementById('status-box');
   const anyBlocked = blocked.some(Boolean);
-  const allSteps   = steps.every(Boolean);
+  const aReady     = setupType === 'aplus' && val.every(Boolean);
+  const bReady     = setupType === 'bsetup' && bval.every(Boolean);
 
   if (anyBlocked) {
     box.className = 'status blocked-st';
     box.textContent = '⛔ No trade';
-  } else if (allSteps) {
+  } else if (aReady) {
     box.className = 'status ' + setup.readyClass;
     box.textContent = setup.readyMsg;
+  } else if (bReady) {
+    box.className = 'status ' + setup.readyClass;
+    box.textContent = setup.readyMsg + ' — B';
   } else {
     box.className = 'status waiting-st';
-    const done = steps.filter(Boolean).length;
+    const items  = setupType === 'aplus' ? val : bval;
+    const done   = items.filter(Boolean).length;
     box.textContent = done === 0 ? 'Waiting for setup...' : `Step ${done + 1} of 4...`;
   }
 }
@@ -534,6 +592,24 @@ function toggleStep(i) {
   render(); showToast();
 }
 
+function toggleVal(i) {
+  val[i] = !val[i];
+  save('val', val);
+  render(); showToast();
+}
+
+function setSetupType(t) {
+  setupType = t;
+  save('setupType', t);
+  render(); showToast();
+}
+
+function toggleBval(i) {
+  bval[i] = !bval[i];
+  save('bval', bval);
+  render(); showToast();
+}
+
 function toggleBlocked(i) {
   blocked[i] = !blocked[i];
   save('blocked', blocked);
@@ -541,10 +617,14 @@ function toggleBlocked(i) {
 }
 
 function resetAll() {
-  steps   = [false,false,false,false];
-  blocked = [false,false,false];
-  save('steps_' + side, steps);
+  val       = [false,false,false,false];
+  bval      = [false,false,false,false];
+  blocked   = [false,false,false];
+  setupType = 'aplus';
+  save('val', val);
+  save('bval', bval);
   save('blocked', blocked);
+  save('setupType', setupType);
   render(); showToast();
 }
 
