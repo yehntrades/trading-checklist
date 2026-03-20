@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>YehnTrades — The Checklist</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -368,12 +370,39 @@
 }
 
 
+/* Calculator nav button */
+.calc-button{
+  display:block;
+  width:100%;
+  max-width:480px;
+  margin-top:32px;
+  padding:14px;
+  text-align:center;
+  text-decoration:none;
+  font-family:Georgia, serif;
+  font-size:11px;
+  letter-spacing:4px;
+  text-transform:uppercase;
+  color:#a09070;
+  border:1px solid #1a1508;
+  border-radius:8px;
+  background:#0d0b08;
+  transition:all .2s ease;
+}
+
+.calc-button:hover{
+  background:#121008;
+  border-color:#3a3020;
+  color:#c9a84c;
+  transform:translateY(-1px);
+}
+
 /* Exit navigation button */
 .exit-button{
   display:block;
   width:100%;
   max-width:480px;
-  margin-top:32px;
+  margin-top:12px;
   padding:14px;
   text-align:center;
   text-decoration:none;
@@ -639,6 +668,7 @@ function showToast() {
 render();
 </script>
 
+<a class="calc-button" href="/position-calculator">Position Calculator</a>
 <a class="exit-button" href="/exit-checklist">Continue to Exit Checklist →</a>
 </body>
 </html>
