@@ -487,10 +487,10 @@ const SETUPS = {
   buy: {
     title: 'Setup — Buys',
     steps: [
-      'Price broke a swing high on HTF',
+      'Swing high broken on HTF',
       'Pulls back to origin of that swing',
       'M15 now aligns with HTF direction',
-      'Enter — stop below the swing low',
+      'Enter — stop below the swing',
     ],
     readyMsg: '✓ ENTRY VALID — BUY',
     readyClass: 'ready-buy',
@@ -498,10 +498,10 @@ const SETUPS = {
   sell: {
     title: 'Setup — Sells',
     steps: [
-      'Price broke a swing low on HTF',
+      'Swing low broken on HTF',
       'Pulls back to origin of that swing',
       'M15 now aligns with HTF direction',
-      'Enter — stop above the swing high',
+      'Enter — stop above the swing',
     ],
     readyMsg: '✓ ENTRY VALID — SELL',
     readyClass: 'ready-sell',
@@ -556,10 +556,10 @@ function render() {
 
   if (setupType === 'aplus') {
     const APLUS_ITEMS = [
-      'HTF swing broken on H4 or Daily',
-      'Pullback to origin of that HTF move',
-      'M15 structure aligns with HTF direction',
-      'Enter — stop below/above the HTF swing',
+      side === 'buy' ? 'Swing high broken on HTF' : 'Swing low broken on HTF',
+      'Pullback to origin of that swing',
+      'M15 now aligns with HTF direction',
+      side === 'buy' ? 'Enter — stop below the swing' : 'Enter — stop above the swing',
     ];
     document.getElementById('val-list').innerHTML = APLUS_ITEMS.map((v, i) => `
       <div class="check-item ${side} ${val[i] ? 'checked' : ''}" onclick="toggleVal(${i})">
