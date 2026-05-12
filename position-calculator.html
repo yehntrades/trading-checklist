@@ -907,55 +907,68 @@ function set(id, v) { document.getElementById(id).value = v; }
 
 // ══════════════════════
 // LIVE FX RATES
-// Uses the official ECB daily XML feed.
-// ECB rates are quoted as: 1 EUR = x foreign currency units.
-// To convert between two non-EUR currencies, convert via EUR:
-//   1 FROM = rates[TO] / rates[FROM]
+// GitHub Pages cannot reliably fetch the ECB XML directly because browsers can
+// block cross-origin XML requests. This uses Frankfurter v2 with providers=ECB,
+// which returns ECB-sourced rates as JSON and works from static sites.
+// Pair format needed by the calculator:
+//   1 FROM currency = rate TO currency
 // ══════════════════════
-const ECB_DAILY_XML = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
-let ecbRatesCache = null;
+const FX_API = 'https://api.frankfurter.dev/v2';
+const fxRateCache = {};
 
-async function getEcbRates() {
-  if (ecbRatesCache) return ecbRatesCache;
+async function fetchJsonWithTimeout(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const res = await fetch(ECB_DAILY_XML, { cache: 'no-store' });
-  if (!res.ok) throw new Error('ECB network error');
+  try {
+    const res = await fetch(url, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    });
 
-  const xmlText = await res.text();
-  const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
-
-  if (xml.querySelector('parsererror')) {
-    throw new Error('ECB XML parse error');
+    if (!res.ok) throw new Error(`FX network error ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
   }
-
-  const rates = { EUR: 1 };
-  xml.querySelectorAll('Cube[currency][rate]').forEach(node => {
-    const currency = node.getAttribute('currency');
-    const rate = parseFloat(node.getAttribute('rate'));
-
-    if (currency && Number.isFinite(rate)) {
-      rates[currency] = rate;
-    }
-  });
-
-  if (!rates.USD || !rates.GBP) {
-    throw new Error('ECB feed missing USD or GBP');
-  }
-
-  ecbRatesCache = rates;
-  return rates;
 }
 
 async function fetchRate(fromCur, toCur) {
   if (fromCur === toCur) return 1;
 
-  const rates = await getEcbRates();
+  const from = String(fromCur).toUpperCase();
+  const to = String(toCur).toUpperCase();
+  const key = `${from}_${to}`;
+  if (fxRateCache[key]) return fxRateCache[key];
 
-  if (!rates[fromCur] || !rates[toCur]) {
-    throw new Error(`ECB rate unavailable for ${fromCur}/${toCur}`);
+  const urls = [
+    `${FX_API}/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}?providers=ECB`,
+    `${FX_API}/rates?base=${encodeURIComponent(from)}&quotes=${encodeURIComponent(to)}&providers=ECB`,
+    // Legacy fallback, still ECB-based, but v2 above should be the main route.
+    `https://api.frankfurter.app/latest?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+  ];
+
+  let lastError;
+
+  for (const url of urls) {
+    try {
+      const data = await fetchJsonWithTimeout(url);
+      const rate = Number(data.rate ?? data.rates?.[to]);
+
+      if (Number.isFinite(rate) && rate > 0) {
+        fxRateCache[key] = rate;
+        return rate;
+      }
+
+      lastError = new Error(`FX rate missing for ${from}/${to}`);
+    } catch (err) {
+      lastError = err;
+      console.warn('FX fetch failed:', url, err);
+    }
   }
 
-  return rates[toCur] / rates[fromCur];
+  throw lastError || new Error(`FX fetch failed for ${from}/${to}`);
 }
 
 async function fetchOTRate() {
@@ -967,10 +980,10 @@ async function fetchOTRate() {
   try {
     const rate = await fetchRate(cur, 'USD');
     input.value = rate.toFixed(5);
-    statusEl.textContent = `Live: 1 ${cur} = ${rate.toFixed(5)} USD`;
+    statusEl.textContent = `ECB rate: 1 ${cur} = ${rate.toFixed(5)} USD`;
     calcOT();
   } catch(e) {
-    statusEl.textContent = 'Could not fetch — enter manually';
+    statusEl.textContent = 'Could not fetch live FX rate — enter manually';
     input.placeholder = cur === 'GBP' ? '1.2700' : '1.0800';
   }
 }
@@ -986,10 +999,10 @@ async function fetchAdvRate() {
   try {
     const rate = await fetchRate(cur, qc);
     input.value = rate.toFixed(5);
-    statusEl.textContent = `Live: 1 ${cur} = ${rate.toFixed(5)} ${qc}`;
+    statusEl.textContent = `ECB rate: 1 ${cur} = ${rate.toFixed(5)} ${qc}`;
     calcAdv();
   } catch(e) {
-    statusEl.textContent = 'Could not fetch — enter manually';
+    statusEl.textContent = 'Could not fetch live FX rate — enter manually';
     input.placeholder = '1.2700';
   }
 }
