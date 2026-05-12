@@ -907,13 +907,55 @@ function set(id, v) { document.getElementById(id).value = v; }
 
 // ══════════════════════
 // LIVE FX RATES
-// Uses frankfurter.app — free, no API key needed
+// Uses the official ECB daily XML feed.
+// ECB rates are quoted as: 1 EUR = x foreign currency units.
+// To convert between two non-EUR currencies, convert via EUR:
+//   1 FROM = rates[TO] / rates[FROM]
 // ══════════════════════
+const ECB_DAILY_XML = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
+let ecbRatesCache = null;
+
+async function getEcbRates() {
+  if (ecbRatesCache) return ecbRatesCache;
+
+  const res = await fetch(ECB_DAILY_XML, { cache: 'no-store' });
+  if (!res.ok) throw new Error('ECB network error');
+
+  const xmlText = await res.text();
+  const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+
+  if (xml.querySelector('parsererror')) {
+    throw new Error('ECB XML parse error');
+  }
+
+  const rates = { EUR: 1 };
+  xml.querySelectorAll('Cube[currency][rate]').forEach(node => {
+    const currency = node.getAttribute('currency');
+    const rate = parseFloat(node.getAttribute('rate'));
+
+    if (currency && Number.isFinite(rate)) {
+      rates[currency] = rate;
+    }
+  });
+
+  if (!rates.USD || !rates.GBP) {
+    throw new Error('ECB feed missing USD or GBP');
+  }
+
+  ecbRatesCache = rates;
+  return rates;
+}
+
 async function fetchRate(fromCur, toCur) {
-  const res = await fetch(`https://api.frankfurter.app/latest?from=${fromCur}&to=${toCur}`);
-  if (!res.ok) throw new Error('Network error');
-  const data = await res.json();
-  return data.rates[toCur];
+  if (fromCur === toCur) return 1;
+
+  const rates = await getEcbRates();
+
+  if (!rates[fromCur] || !rates[toCur]) {
+    throw new Error(`ECB rate unavailable for ${fromCur}/${toCur}`);
+  }
+
+  return rates[toCur] / rates[fromCur];
 }
 
 async function fetchOTRate() {
